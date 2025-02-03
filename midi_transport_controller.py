@@ -1,4 +1,6 @@
 import time
+import board
+import busio
 import usb_midi
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
@@ -16,14 +18,27 @@ keypad = PMK(hardware)
 cc_values = list(range(36, 52))  # CC 36 a 51 (ajustar según necesidad)
 
 # Definir colores con brillo ajustado
-BRIGHTNESS = 0.5
-COLOR_COL1 = (int(255 * BRIGHTNESS), 0, 0)  # Rojo
-COLOR_COL2 = (0, int(255 * BRIGHTNESS), 0)  # Verde
-COLOR_COL3 = (0, 0, int(255 * BRIGHTNESS))  # Azul
-COLOR_COL4 = (int(255 * BRIGHTNESS), int(255 * BRIGHTNESS), int(255 * BRIGHTNESS))  # Blanco
+BRIGHTNESS_LOW = 0.015  # Brillo tenue
+BRIGHTNESS_HIGH = 0.5  # Brillo alto al presionar
+COLOR_COL1 = (int(255 * BRIGHTNESS_LOW), 0, 0)  # Rojo tenue
+COLOR_COL2 = (0, int(255 * BRIGHTNESS_LOW), 0)  # Verde tenue
+COLOR_COL3 = (0, 0, int(255 * BRIGHTNESS_LOW))  # Azul tenue
+COLOR_COL4 = (int(255 * BRIGHTNESS_LOW), int(255 * BRIGHTNESS_LOW), int(255 * BRIGHTNESS_LOW))  # Blanco tenue
 
 # Estado previo de las teclas
 teclas_estado = [False] * 16
+
+# Encender los LEDs con brillo tenue inicialmente
+for i in range(16):
+    if i % 4 == 0:
+        keypad.keys[i].set_led(*COLOR_COL1)
+    elif i % 4 == 1:
+        keypad.keys[i].set_led(*COLOR_COL2)
+    elif i % 4 == 2:
+        keypad.keys[i].set_led(*COLOR_COL3)
+    elif i % 4 == 3:
+        keypad.keys[i].set_led(*COLOR_COL4)
+keypad.update()
 
 while True:
     # Leer mensajes MIDI entrantes
@@ -31,17 +46,7 @@ while True:
     if msg and isinstance(msg, ControlChange):
         index = msg.control - 36  # Ajustar al índice de las teclas
         if 0 <= index < 16:
-            brightness = msg.value / 127  # Escalar valor CC a brillo
-            if index % 4 == 0:
-                keypad.keys[index].set_led(int(255 * brightness), 0, 0)  # Rojo
-            elif index % 4 == 1:
-                keypad.keys[index].set_led(0, int(255 * brightness), 0)  # Verde
-            elif index % 4 == 2:
-                keypad.keys[index].set_led(0, 0, int(255 * brightness))  # Azul
-            elif index % 4 == 3:
-                keypad.keys[index].set_led(int(255 * brightness), int(255 * brightness), int(255 * brightness))  # Blanco
-            keypad.update()
-            print(f"Recibido Control Change {msg.control}: {msg.value}")
+            print(f"ControlChange {msg.control}: {msg.value}")
     
     # Procesar teclas
     for i, key in enumerate(keypad.keys):
@@ -50,17 +55,24 @@ while True:
             print(f"Enviado Control Change {cc_values[i]}: 127")
             teclas_estado[i] = True
             if i % 4 == 0:  # 1a columna
-                key.set_led(*COLOR_COL1)
+                key.set_led(int(255 * BRIGHTNESS_HIGH), 0, 0)
             elif i % 4 == 1:  # 2a columna
-                key.set_led(*COLOR_COL2)
+                key.set_led(0, int(255 * BRIGHTNESS_HIGH), 0)
             elif i % 4 == 2:  # 3a columna
-                key.set_led(*COLOR_COL3)
+                key.set_led(0, 0, int(255 * BRIGHTNESS_HIGH))
             elif i % 4 == 3:  # 4a columna
-                key.set_led(*COLOR_COL4)
+                key.set_led(int(255 * BRIGHTNESS_HIGH), int(255 * BRIGHTNESS_HIGH), int(255 * BRIGHTNESS_HIGH))
         elif not key.pressed and teclas_estado[i]:  # Si la tecla se suelta
             midi.send(ControlChange(cc_values[i], 0))  # Enviar CC con valor 0
             print(f"Enviado Control Change {cc_values[i]}: 0")
             teclas_estado[i] = False
-            key.set_led(0, 0, 0)  # Apagar LED
+            if i % 4 == 0:
+                key.set_led(*COLOR_COL1)
+            elif i % 4 == 1:
+                key.set_led(*COLOR_COL2)
+            elif i % 4 == 2:
+                key.set_led(*COLOR_COL3)
+            elif i % 4 == 3:
+                key.set_led(*COLOR_COL4)
     keypad.update()  # Actualizar los LEDs
     time.sleep(0.01)  # Pequeño retardo para evitar rebotes
